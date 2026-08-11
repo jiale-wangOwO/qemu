@@ -296,6 +296,36 @@ static void test_operation_tcvt_accepts_different_carrier_rows(void)
     g_free(env);
 }
 
+static void test_value_reduction_destination_descriptors(void)
+{
+    uint32_t valid_cols;
+    uint32_t valid_rows;
+    uint32_t cols;
+    uint32_t rows;
+
+    g_assert_true(linx_tile_value_reduction_descriptor(
+        0x012u, 8u, 8u, 128u, 4u, &valid_cols, &valid_rows, &cols, &rows));
+    g_assert_cmpuint(valid_cols, ==, 1u);
+    g_assert_cmpuint(valid_rows, ==, 8u);
+    g_assert_cmpuint(cols, ==, 4u);
+    g_assert_cmpuint(rows, ==, 8u);
+
+    g_assert_true(linx_tile_value_reduction_descriptor(
+        0x015u, 8u, 8u, 128u, 4u, &valid_cols, &valid_rows, &cols, &rows));
+    g_assert_cmpuint(valid_cols, ==, 8u);
+    g_assert_cmpuint(valid_rows, ==, 1u);
+    g_assert_cmpuint(cols, ==, 8u);
+    g_assert_cmpuint(rows, ==, 4u);
+
+    g_assert_true(linx_tile_value_reduction_axis(0x035u, NULL));
+    g_assert_true(linx_tile_value_reduction_axis(0x038u, NULL));
+
+    g_assert_false(linx_tile_value_reduction_descriptor(
+        0x012u, 8u, 8u, 16u, 4u, &valid_cols, &valid_rows, &cols, &rows));
+    g_assert_false(linx_tile_value_reduction_descriptor(
+        0x000u, 8u, 8u, 128u, 4u, &valid_cols, &valid_rows, &cols, &rows));
+}
+
 static void test_operation_zero_tquant_scale_is_atomic(void)
 {
     CPULinxState *env = new_atomicity_env();
@@ -402,6 +432,8 @@ int main(int argc, char **argv)
                     test_operation_missing_tquant_scale_is_atomic);
     g_test_add_func("/linx/tile-transaction/operation-tcvt-carrier-shape",
                     test_operation_tcvt_accepts_different_carrier_rows);
+    g_test_add_func("/linx/tile-transaction/value-reduction-descriptors",
+                    test_value_reduction_destination_descriptors);
     g_test_add_func("/linx/tile-transaction/operation-zero-tquant-scale",
                     test_operation_zero_tquant_scale_is_atomic);
     g_test_add_func("/linx/tile-transaction/operation-trem-zero-tile-divisor",

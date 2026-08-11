@@ -8,6 +8,59 @@
 
 #include "cpu.h"
 
+static inline bool linx_tile_value_reduction_axis(uint32_t impl,
+                                                  bool *row_reduce)
+{
+    if ((impl >= 0x012u && impl <= 0x014u) || impl == 0x035u) {
+        if (row_reduce != NULL) {
+            *row_reduce = true;
+        }
+        return true;
+    }
+    if ((impl >= 0x015u && impl <= 0x017u) || impl == 0x038u) {
+        if (row_reduce != NULL) {
+            *row_reduce = false;
+        }
+        return true;
+    }
+    return false;
+}
+
+/* Reduction validity follows the source descriptor; TSize supplies capacity. */
+static inline bool linx_tile_value_reduction_descriptor(
+    uint32_t impl, uint32_t source_cols, uint32_t source_rows,
+    uint32_t bytes, unsigned elem_bytes, uint32_t *valid_cols,
+    uint32_t *valid_rows, uint32_t *cols, uint32_t *rows)
+{
+    bool row_reduce;
+    uint32_t output_count;
+
+    if (!linx_tile_value_reduction_axis(impl, &row_reduce)) {
+        return false;
+    }
+    source_cols = source_cols == 0u ? 1u : source_cols;
+    source_rows = source_rows == 0u ? 1u : source_rows;
+    output_count = row_reduce ? source_rows : source_cols;
+    if (elem_bytes == 0u || output_count == 0u ||
+        bytes < output_count * elem_bytes ||
+        bytes % (output_count * elem_bytes) != 0u) {
+        return false;
+    }
+
+    if (row_reduce) {
+        *valid_cols = 1u;
+        *valid_rows = source_rows;
+        *cols = bytes / (output_count * elem_bytes);
+        *rows = source_rows;
+    } else {
+        *valid_cols = source_cols;
+        *valid_rows = 1u;
+        *cols = source_cols;
+        *rows = bytes / (source_cols * elem_bytes);
+    }
+    return *cols != 0u && *rows != 0u;
+}
+
 static inline bool linx_tile_operation_preflight_resolve_ior(
     const CPULinxState *env, unsigned slot, unsigned *reg_out)
 {
