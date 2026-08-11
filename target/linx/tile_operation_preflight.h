@@ -129,7 +129,7 @@ static inline bool linx_tile_operation_pre_publish_legal(
     const bool custom_shape = impl == 0x00du || impl == 0x01cu ||
                               impl == 0x087u ||
                               impl == 0x089u || impl == 0x085u ||
-                              impl == 0x084u ||
+                              impl == 0x084u || impl == 0x105u ||
                               (impl >= 0x102u && impl <= 0x10bu);
 
     if (impl == 0x02cu) {
@@ -176,6 +176,50 @@ static inline bool linx_tile_operation_pre_publish_legal(
                env->tile_reg_dtype[src0] == dtype &&
                env->tile_reg_dtype[src1] == dtype &&
                env->tile_reg_dtype[src2] == dtype;
+    }
+    if (impl == 0x085u) { /* TEXTRACT */
+        unsigned row_reg;
+        unsigned col_reg;
+
+        if (!has_src0 || has_src1 || src0 >= LINX_TILE_SLOT_COUNT ||
+            !linx_tile_operation_preflight_resolve_ior(env, 0u, &row_reg) ||
+            !linx_tile_operation_preflight_resolve_ior(env, 1u, &col_reg)) {
+            return false;
+        }
+        return env->tile_reg_dtype[src0] == dtype &&
+               env->tile_reg_elem_bytes[src0] == elem_bytes &&
+               (env->gpr[row_reg] & UINT64_C(0xffff)) + valid_rows <=
+                   env->tile_reg_valid_rows[src0] &&
+               (env->gpr[col_reg] & UINT64_C(0xffff)) + valid_cols <=
+                   env->tile_reg_valid_cols[src0] &&
+               env->tile_reg_cols[src0] >= env->tile_reg_valid_cols[src0];
+    }
+    if (impl == 0x105u) { /* THISTOGRAM */
+        const unsigned selected_byte = (env->tile_attr_raw >> 12) & 0x3u;
+        const uint32_t source_dtype = has_src0
+                                          ? env->tile_reg_dtype[src0] & 0x1fu
+                                          : UINT32_MAX;
+        const uint32_t required_index_rows =
+            selected_byte <= 2u ? 3u - selected_byte : 0u;
+
+        if (!has_src0 || !has_src1 || has_src2 ||
+            src0 >= LINX_TILE_SLOT_COUNT || src1 >= LINX_TILE_SLOT_COUNT ||
+            dtype != 25u || elem_bytes != sizeof(uint32_t) ||
+            valid_cols < 256u ||
+            (source_dtype != 25u && source_dtype != 26u) ||
+            (source_dtype == 26u && selected_byte > 1u) ||
+            env->tile_reg_valid_rows[src0] != valid_rows ||
+            env->tile_reg_cols[src0] < env->tile_reg_valid_cols[src0]) {
+            return false;
+        }
+        if (source_dtype == 26u && selected_byte == 0u) {
+            return env->tile_reg_valid_rows[src1] >=
+                       env->tile_reg_valid_rows[src0] &&
+                   env->tile_reg_valid_cols[src1] >= 1u;
+        }
+        return source_dtype != 25u || required_index_rows == 0u ||
+               (env->tile_reg_valid_rows[src1] >= required_index_rows &&
+                env->tile_reg_valid_cols[src1] >= 1u);
     }
     if (impl == 0x00du) { /* TCVT */
         return has_src0 && !has_src1 && src0 < LINX_TILE_SLOT_COUNT &&

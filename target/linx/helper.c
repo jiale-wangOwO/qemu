@@ -15023,7 +15023,9 @@ static void linx_tile_mgather_common(CPULinxState *env, unsigned dst_tile,
                     helper_raise_exception(env, LINX_EXCP_ILLEGAL_INST);
                     return;
                 }
-                value = linx_tile_mem_read(env, base + off, elem_bytes);
+                /* PTO v0.58 indices address elements, not bytes. */
+                value = linx_tile_mem_read(env, base + off * elem_bytes,
+                                           elem_bytes);
             } else {
                 const uint32_t seed = lane ^ (uint32_t)base ^ (env->tile_attr_raw << 8);
                 value = linx_tile_pad_value(env->tile_attr_pad, env->tile_dtype,
@@ -15078,7 +15080,8 @@ static void linx_tile_mscatter_common(CPULinxState *env, unsigned data_tile,
                 helper_raise_exception(env, LINX_EXCP_ILLEGAL_INST);
                 return;
             }
-            linx_tile_mem_write(env, base + off, elem_bytes, value);
+            linx_tile_mem_write(env, base + off * elem_bytes, elem_bytes,
+                                value);
         }
     }
 }
@@ -15121,7 +15124,9 @@ static void linx_tile_mgather_cas(CPULinxState *env, unsigned dst_tile,
                     helper_raise_exception(env, LINX_EXCP_ILLEGAL_INST);
                     return;
                 }
-                old_value = linx_tile_mem_cmpxchg(env, base + off, elem_bytes,
+                old_value = linx_tile_mem_cmpxchg(env,
+                                                  base + off * elem_bytes,
+                                                  elem_bytes,
                                                   expected, desired);
             } else {
                 const uint32_t seed = lane ^ (uint32_t)base ^ (env->tile_attr_raw << 8);
