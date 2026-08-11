@@ -213,9 +213,8 @@ static inline uint32_t linx_tile_datr_allowed(uint32_t blocktype,
         }
         return function == 3u ? 0u : LINX_DATR_LAYOUT;
     case 6u: /* CUBE */
-        return function == 8u ?
-            LINX_DATR_SAT | LINX_DATR_CANONICALIZE |
-            LINX_DATR_DATA_TYPE | LINX_DATR_RMODE | LINX_DATR_LAYOUT : 0u;
+        return LINX_DATR_SAT | LINX_DATR_CANONICALIZE |
+               LINX_DATR_DATA_TYPE | LINX_DATR_RMODE | LINX_DATR_LAYOUT;
     case 7u: /* TEPL */
         return linx_tile_operation_datr_allowed(function & 0x7fu);
     default:

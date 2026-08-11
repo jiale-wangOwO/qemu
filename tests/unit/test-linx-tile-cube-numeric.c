@@ -61,6 +61,7 @@ static uint64_t run_acccvt(CPULinxState *env, unsigned dtype, double value,
                            unsigned rmode, bool sat)
 {
     uint64_t raw = 0;
+    unsigned row_bytes = dtype >= 11 && dtype <= 14 ? 1 : dtype_bytes(dtype);
     set_fp64_acc(env, &value, 1, 1);
     env->tile_dtype = dtype;
     env->tile_attr_raw = (rmode << 25) | ((unsigned)sat << 28);
@@ -70,7 +71,7 @@ static uint64_t run_acccvt(CPULinxState *env, unsigned dtype, double value,
     g_assert_cmpuint(env->tile_reg_valid_cols[31], ==, 1);
     g_assert_cmpuint(env->tile_reg_valid_rows[31], ==, 1);
     g_assert_cmpuint(env->tile_reg_cols[31], ==, 1);
-    g_assert_cmpuint(env->tile_reg_rows[31], ==, 1);
+    g_assert_cmpuint(env->tile_reg_rows[31], ==, 16 / row_bytes);
     return raw;
 }
 
@@ -253,7 +254,7 @@ static void test_group_profile_dimension_contract(void)
     CPULinxState *env = g_new0(CPULinxState, 1);
 
     env->lb[0] = 32;
-    env->lb[1] = 8;
+    env->lb[1] = 32;
     env->lb[2] = 32;
     g_assert_true(linx_tile_cube_group_dimensions_legal_058(env));
 
