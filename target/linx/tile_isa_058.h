@@ -97,6 +97,11 @@ static inline bool linx_tile_data_type_accepted(uint32_t data_type)
            (UINT32_C(0x1f1f7fff) & (UINT32_C(1) << data_type)) != 0;
 }
 
+static inline bool linx_tile_data_type_field_accepted(uint32_t data_type)
+{
+    return data_type == 31u || linx_tile_data_type_accepted(data_type);
+}
+
 static inline bool linx_tile_layout_accepted(uint32_t layout)
 {
     return layout < 32u &&
@@ -163,9 +168,11 @@ enum {
 
 static inline uint32_t linx_tile_datr_nonzero_fields(uint32_t packed)
 {
+    const uint32_t data_type = (packed >> 7) & 0x1fu;
+
     return (((packed >> 28) & 1u) ? LINX_DATR_SAT : 0u) |
            (((packed >> 17) & 1u) ? LINX_DATR_CANONICALIZE : 0u) |
-           (((packed >> 7) & 0x1fu) ? LINX_DATR_DATA_TYPE : 0u) |
+           ((data_type != 0u && data_type != 31u) ? LINX_DATR_DATA_TYPE : 0u) |
            (((packed >> 25) & 7u) ? LINX_DATR_RMODE : 0u) |
            (((packed >> 2) & 0x1fu) ? LINX_DATR_LAYOUT : 0u) |
            (((packed >> 12) & 3u) ? LINX_DATR_PAD_OR_BYTE_ID : 0u) |

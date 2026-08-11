@@ -2522,6 +2522,30 @@ static bool trans_bstart_tmov(DisasContext *ctx, arg_bstart_tmov *a)
     return trans_bstart_tile_func_common(ctx, a->dtype, 2, 2);
 }
 
+static bool trans_bstart_tmov_l2s_insert(
+    DisasContext *ctx, arg_bstart_tmov_l2s_insert *a)
+{
+    return trans_bstart_tile_func_common(ctx, a->dtype, 2, 9);
+}
+
+static bool trans_bstart_tmov_l2s_publish(
+    DisasContext *ctx, arg_bstart_tmov_l2s_publish *a)
+{
+    return trans_bstart_tile_func_common(ctx, a->dtype, 2, 10);
+}
+
+static bool trans_bstart_tmov_s2l_broadcast(
+    DisasContext *ctx, arg_bstart_tmov_s2l_broadcast *a)
+{
+    return trans_bstart_tile_func_common(ctx, a->dtype, 2, 11);
+}
+
+static bool trans_bstart_tmov_s2l_extract(
+    DisasContext *ctx, arg_bstart_tmov_s2l_extract *a)
+{
+    return trans_bstart_tile_func_common(ctx, a->dtype, 2, 12);
+}
+
 static bool trans_bstart_tprefetch(DisasContext *ctx, arg_bstart_tprefetch *a)
 {
     return trans_bstart_tile_func_common(ctx, a->dtype, 2, 3);
@@ -2633,7 +2657,7 @@ static bool trans_bstart_tile_func_common(DisasContext *ctx, uint32_t dtype,
                                           uint32_t blocktype, uint32_t func)
 {
     vaddr current_pc = ctx->base.pc_next - ctx->cur_insn_len;
-    if (!linx_tile_data_type_accepted(dtype & 0x1fu)) {
+    if (!linx_tile_data_type_field_accepted(dtype & 0x1fu)) {
         return linx_illegal(ctx);
     }
     if (ctx->in_body) {
@@ -2846,7 +2870,7 @@ static bool trans_b_datr(DisasContext *ctx, arg_b_datr *a)
         return linx_block_fault(ctx, LINX_EBLOCK_LEGACY_DESC_OUTSIDE_BLOCK, 0);
     }
     if (a->cmode > 5u ||
-        !linx_tile_data_type_accepted(a->dtype & 0x1fu) ||
+        !linx_tile_data_type_field_accepted(a->dtype & 0x1fu) ||
         !linx_tile_layout_accepted(a->layout & 0x1fu)) {
         return linx_illegal(ctx);
     }
