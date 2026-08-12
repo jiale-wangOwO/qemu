@@ -2517,6 +2517,12 @@ static bool trans_bstart_tstore(DisasContext *ctx, arg_bstart_tstore *a)
     return trans_bstart_tile_func_common(ctx, a->dtype, 2, 1);
 }
 
+static bool trans_bstart_tstore_spart(DisasContext *ctx,
+                                      arg_bstart_tstore_spart *a)
+{
+    return trans_bstart_tile_func_common(ctx, a->dtype, 2, 14);
+}
+
 static bool trans_bstart_tmov(DisasContext *ctx, arg_bstart_tmov *a)
 {
     return trans_bstart_tile_func_common(ctx, a->dtype, 2, 2);

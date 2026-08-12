@@ -74,6 +74,35 @@ class PtoV058ContractTests(unittest.TestCase):
         self.assertIn('.mnemonic="bstart_tfma"', self.meta)
         self.assertIn(".match=UINT64_C(0x1c19181)", self.meta)
 
+    def test_mx_cube_uses_normative_operand_order(self) -> None:
+        # PTO v0.58: [A, row-scale, B, column-scale, bias?], with an
+        # accumulator prepended for the ACC forms.
+        self.assertIn(
+            "? (accumulate ? sources[3] : sources[2])",
+            self.helper,
+        )
+        self.assertIn(
+            "accumulate ? sources[2] : sources[1]",
+            self.helper,
+        )
+        self.assertRegex(
+            self.helper,
+            r"linx_tile_cube_compute\(env, sources\[0\], sources\[2\],\s*"
+            r"sources\[1\], sources\[3\]",
+        )
+        self.assertRegex(
+            self.helper,
+            r"linx_tile_cube_compute\(env, sources\[1\], sources\[3\],\s*"
+            r"sources\[2\], sources\[4\]",
+        )
+
+    def test_shared_tstore_profiles_are_executable(self) -> None:
+        self.assertIn("bstart_tstore_spart", self.decode32)
+        self.assertIn("trans_bstart_tstore_spart", self.translate)
+        self.assertIn("LINX_TLSU_TSTORE_SPART = 14", self.helper)
+        self.assertIn("linx_tile_shared_tstore_legal", self.helper)
+        self.assertIn("linx_tile_shared_tstore_commit", self.helper)
+
     def test_final_tlsu_cas_and_gmov_paths_are_executable(self) -> None:
         self.assertIn("trans_bstart_mgather_cas", self.translate)
         self.assertIn("trans_bstart_gmov", self.translate)
