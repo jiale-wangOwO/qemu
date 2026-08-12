@@ -126,6 +126,39 @@ class PtoV058ContractTests(unittest.TestCase):
             self.assertNotIn("pc_page", body)
             self.assertNotRegex(body, r"offset\s*<<=\s*12")
 
+    def test_scalar_right_modifier_mapping_matches_asl(self) -> None:
+        arithmetic = re.search(
+            r"static TCGv_i64 linx_srcR_addsub\(.*?\n\}", self.translate, re.S
+        ).group(0)
+        logical = re.search(
+            r"static TCGv_i64 linx_srcR_logic\(.*?\n\}", self.translate, re.S
+        ).group(0)
+        compare = re.search(
+            r"static TCGv_i64 linx_srcR_compare\(.*?\n\}", self.translate, re.S
+        ).group(0)
+        select = re.search(
+            r"static TCGv_i64 linx_srcR_select\(.*?\n\}", self.translate, re.S
+        ).group(0)
+
+        for body in (arithmetic, logical):
+            self.assertRegex(body, r"case 0: /\* no modifier \*/")
+            self.assertRegex(body, r"case 1: /\* \.sw \*/")
+            self.assertRegex(body, r"case 2: /\* \.uw \*/")
+        self.assertRegex(arithmetic, r"case 3: /\* \.neg \*/")
+        self.assertRegex(logical, r"case 3: /\* \.not \*/")
+        self.assertIn("default: /* 0 and 3 are unmodified aliases */", compare)
+        self.assertIn("(srcRType & 0x3) == 3", select)
+
+        for name in ("trans_cmp_eq", "trans_cmp_ne", "trans_setc_eq", "trans_setc_ne"):
+            body = re.search(
+                rf"static bool {name}\(.*?\n\}}", self.translate, re.S
+            ).group(0)
+            self.assertIn("linx_srcR_compare", body)
+        csel = re.search(
+            r"static bool trans_csel\(.*?\n\}", self.translate, re.S
+        ).group(0)
+        self.assertIn("linx_srcR_select", csel)
+
     def test_shared_tstore_profiles_are_executable(self) -> None:
         self.assertIn("bstart_tstore_spart", self.decode32)
         self.assertIn("trans_bstart_tstore_spart", self.translate)
