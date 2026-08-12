@@ -180,13 +180,15 @@ static void test_invalid_datr_is_atomic(void)
     assert_rejected_without_state_change(&gate, LINX_TILE_TXN_ILLEGAL);
 }
 
-static void test_datr_null_is_unconsumed(void)
+static void test_datr_must_zero_pad_is_unconsumed(void)
 {
-    const uint32_t fp32_null = (1u << 7) | (3u << 12);
+    const uint32_t tcmp_cmode0 = 0u;
+    const uint32_t tcmp_cmode2 = 2u << 22;
     const uint32_t fp32_max = (1u << 7) | (1u << 12);
 
     g_assert_true(linx_tile_datr_applicable(6u, 0u, 0u, false));
-    g_assert_true(linx_tile_datr_applicable(6u, 0u, fp32_null, true));
+    g_assert_true(linx_tile_datr_applicable(7u, 0x00du, tcmp_cmode0, true));
+    g_assert_true(linx_tile_datr_applicable(7u, 0x00du, tcmp_cmode2, true));
     g_assert_false(linx_tile_datr_applicable(6u, 0u, fp32_max, true));
 }
 
@@ -445,8 +447,8 @@ int main(int argc, char **argv)
     g_test_init(&argc, &argv, NULL);
     g_test_add_func("/linx/tile-transaction/invalid-datr",
                     test_invalid_datr_is_atomic);
-    g_test_add_func("/linx/tile-transaction/datr-null-unconsumed",
-                    test_datr_null_is_unconsumed);
+    g_test_add_func("/linx/tile-transaction/datr-must-zero-pad",
+                    test_datr_must_zero_pad_is_unconsumed);
     g_test_add_func("/linx/tile-transaction/v058-source-lifetime",
                     test_v058_source_binding_preserves_producer_age);
     g_test_add_func("/linx/tile-transaction/invalid-cube-operand",

@@ -186,8 +186,13 @@ static inline uint32_t linx_tile_datr_nonzero_fields(uint32_t packed)
            ((data_type != 0u && data_type != 31u) ? LINX_DATR_DATA_TYPE : 0u) |
            (((packed >> 25) & 7u) ? LINX_DATR_RMODE : 0u) |
            (((packed >> 2) & 0x1fu) ? LINX_DATR_LAYOUT : 0u) |
-           /* PadValue Null is the unconsumed sentinel, like DTYPE_NONE. */
-           ((pad_or_byte_id != 3u) ? LINX_DATR_PAD_OR_BYTE_ID : 0u) |
+           /*
+            * PTO v0.58 uses the all-zero encoding when an instruction
+            * requires PadValueOrByteId to be zero.  Treat only a nonzero
+            * field as an applicability request; operations that consume the
+            * field explicitly allow it and may interpret zero as Zero.
+            */
+           (pad_or_byte_id ? LINX_DATR_PAD_OR_BYTE_ID : 0u) |
            (((packed >> 22) & 7u) ? LINX_DATR_CMODE : 0u);
 }
 
