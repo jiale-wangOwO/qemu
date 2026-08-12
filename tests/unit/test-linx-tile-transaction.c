@@ -180,6 +180,33 @@ static void test_invalid_datr_is_atomic(void)
     assert_rejected_without_state_change(&gate, LINX_TILE_TXN_ILLEGAL);
 }
 
+static void test_datr_null_is_unconsumed(void)
+{
+    const uint32_t fp32_null = (1u << 7) | (3u << 12);
+    const uint32_t fp32_max = (1u << 7) | (1u << 12);
+
+    g_assert_true(linx_tile_datr_applicable(6u, 0u, 0u, false));
+    g_assert_true(linx_tile_datr_applicable(6u, 0u, fp32_null, true));
+    g_assert_false(linx_tile_datr_applicable(6u, 0u, fp32_max, true));
+}
+
+static void test_v058_source_binding_preserves_producer_age(void)
+{
+    uint16_t live[LINX_TILE_HAND_COUNT] = { 0x3u };
+    uint8_t order[LINX_TILE_HAND_COUNT][LINX_TILE_HAND_DEPTH] = {
+        { 1u, 0u },
+    };
+    uint8_t count[LINX_TILE_HAND_COUNT] = { 2u };
+
+    linx_tile_preserve_v058_source_lifetime(live, order, count, 1u);
+
+    g_assert_cmphex(live[0], ==, 0x3u);
+    g_assert_cmpuint(count[0], ==, 2u);
+    g_assert_cmpuint(order[0][0], ==, 1u);
+    g_assert_cmpuint(order[0][1], ==, 0u);
+    g_assert_true((live[0] & LINX_TILE_HAND_BIT(order[0][1])) != 0u);
+}
+
 static void test_invalid_cube_operand_is_atomic(void)
 {
     const LinxTileTxnGate gate = { true, false, true };
@@ -418,6 +445,10 @@ int main(int argc, char **argv)
     g_test_init(&argc, &argv, NULL);
     g_test_add_func("/linx/tile-transaction/invalid-datr",
                     test_invalid_datr_is_atomic);
+    g_test_add_func("/linx/tile-transaction/datr-null-unconsumed",
+                    test_datr_null_is_unconsumed);
+    g_test_add_func("/linx/tile-transaction/v058-source-lifetime",
+                    test_v058_source_binding_preserves_producer_age);
     g_test_add_func("/linx/tile-transaction/invalid-cube-operand",
                     test_invalid_cube_operand_is_atomic);
     g_test_add_func("/linx/tile-transaction/allocation-failure",

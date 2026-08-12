@@ -10,8 +10,6 @@
 enum {
     LINX_IOT_S0V = 1u << 0,
     LINX_IOT_S1V = 1u << 1,
-    LINX_IOT_S0R = 1u << 2,
-    LINX_IOT_S1R = 1u << 3,
 };
 
 enum {
@@ -49,6 +47,18 @@ static inline LinxTileIOTDesc linx_tile_decode_iot(uint64_t packed)
     d.size = (packed >> LINX_TILE_IOT_SIZE_SHIFT) & 0x1fu;
     d.has_size = ((packed >> LINX_TILE_IOT_HAS_SIZE_SHIFT) & 0x1u) != 0;
     return d;
+}
+
+static inline void linx_tile_preserve_v058_source_lifetime(
+    uint16_t live[LINX_TILE_HAND_COUNT],
+    uint8_t order[LINX_TILE_HAND_COUNT][LINX_TILE_HAND_DEPTH],
+    uint8_t count_by_hand[LINX_TILE_HAND_COUNT], unsigned tile)
+{
+    /* B.IOT binds a reader; it does not retire the named producer. */
+    (void)live;
+    (void)order;
+    (void)count_by_hand;
+    (void)tile;
 }
 
 /* Source-only operations recover the internal allocation size from the Tile. */
@@ -169,13 +179,15 @@ enum {
 static inline uint32_t linx_tile_datr_nonzero_fields(uint32_t packed)
 {
     const uint32_t data_type = (packed >> 7) & 0x1fu;
+    const uint32_t pad_or_byte_id = (packed >> 12) & 3u;
 
     return (((packed >> 28) & 1u) ? LINX_DATR_SAT : 0u) |
            (((packed >> 17) & 1u) ? LINX_DATR_CANONICALIZE : 0u) |
            ((data_type != 0u && data_type != 31u) ? LINX_DATR_DATA_TYPE : 0u) |
            (((packed >> 25) & 7u) ? LINX_DATR_RMODE : 0u) |
            (((packed >> 2) & 0x1fu) ? LINX_DATR_LAYOUT : 0u) |
-           (((packed >> 12) & 3u) ? LINX_DATR_PAD_OR_BYTE_ID : 0u) |
+           /* PadValue Null is the unconsumed sentinel, like DTYPE_NONE. */
+           ((pad_or_byte_id != 3u) ? LINX_DATR_PAD_OR_BYTE_ID : 0u) |
            (((packed >> 22) & 7u) ? LINX_DATR_CMODE : 0u);
 }
 
@@ -224,8 +236,12 @@ static inline uint32_t linx_tile_datr_allowed(uint32_t blocktype,
 
 static inline bool linx_tile_datr_applicable(uint32_t blocktype,
                                              uint32_t function,
-                                             uint32_t packed)
+                                             uint32_t packed,
+                                             bool present)
 {
+    if (!present) {
+        return true;
+    }
     return (linx_tile_datr_nonzero_fields(packed) &
             ~linx_tile_datr_allowed(blocktype, function)) == 0u;
 }

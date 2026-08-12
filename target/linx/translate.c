@@ -2913,9 +2913,6 @@ static bool trans_b_hint(DisasContext *ctx, arg_b_hint *a)
     if (ctx->in_body) {
         return linx_block_fault(ctx, LINX_EBLOCK_LEGACY_ILLEGAL_IN_BODY, 0);
     }
-    if (ctx->brtype == 0) {
-        return linx_block_fault(ctx, LINX_EBLOCK_LEGACY_DESC_OUTSIDE_BLOCK, 0);
-    }
     (void)a;
     return true;
 }
@@ -2924,9 +2921,6 @@ static bool trans_b_hint_trace(DisasContext *ctx, arg_b_hint_trace *a)
 {
     if (ctx->in_body) {
         return linx_block_fault(ctx, LINX_EBLOCK_LEGACY_ILLEGAL_IN_BODY, 0);
-    }
-    if (ctx->brtype == 0) {
-        return linx_block_fault(ctx, LINX_EBLOCK_LEGACY_DESC_OUTSIDE_BLOCK, 0);
     }
     (void)a;
     return true;
