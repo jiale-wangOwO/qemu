@@ -113,6 +113,19 @@ class PtoV058ContractTests(unittest.TestCase):
         )
         self.assertNotIn("LB2 is destination Col", self.cube)
 
+    def test_addtpc_uses_asl_halfword_displacement(self) -> None:
+        addtpc = re.search(
+            r"static bool trans_addtpc\(.*?\n\}", self.translate, re.S
+        ).group(0)
+        hl_addtpc = re.search(
+            r"static bool trans_hl_addtpc\(.*?\n\}", self.translate, re.S
+        ).group(0)
+        for body in (addtpc, hl_addtpc):
+            self.assertIn("current_pc + offset", body)
+            self.assertRegex(body, r"offset\s*=.*<< 1")
+            self.assertNotIn("pc_page", body)
+            self.assertNotRegex(body, r"offset\s*<<=\s*12")
+
     def test_shared_tstore_profiles_are_executable(self) -> None:
         self.assertIn("bstart_tstore_spart", self.decode32)
         self.assertIn("trans_bstart_tstore_spart", self.translate)

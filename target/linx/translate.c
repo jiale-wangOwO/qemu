@@ -6628,14 +6628,12 @@ static bool trans_xb(DisasContext *ctx, arg_xb *a)
 
 static bool trans_addtpc(DisasContext *ctx, arg_addtpc *a)
 {
-    /* ADDTPC: PC-relative page base
-     * rd = (PC & ~0xFFF) + (sext(imm20) << 12) */
+    /* PTO AddToPC: destination = TPC + (SignExtend(imm20) << 1). */
     vaddr current_pc = ctx->base.pc_next - ctx->cur_insn_len;
-    vaddr pc_page = current_pc & ~(vaddr)0xfff;
-    int64_t imm = (int64_t)(int32_t)(a->imm20 << 12) >> 12; /* sign-extend 20-bit */
-    imm <<= 12;
+    int64_t imm = (int64_t)(int32_t)(a->imm20 << 12) >> 12;
+    uint64_t offset = (uint64_t)imm << 1;
     TCGv_i64 out = tcg_temp_new_i64();
-    tcg_gen_movi_i64(out, pc_page + imm);
+    tcg_gen_movi_i64(out, current_pc + offset);
     linx_set_dest(a->RegDst, out);
     return true;
 }
@@ -7527,13 +7525,11 @@ static bool trans_hl_addtpc(DisasContext *ctx, arg_hl_addtpc *a)
         return linx_setret_common(ctx, (int64_t)(int32_t)a->imm);
     }
 
-    /* HL.ADDTPC: PC-relative with 32-bit offset */
+    /* PTO AddToPC: destination = TPC + (SignExtend(imm32) << 1). */
     vaddr current_pc = ctx->base.pc_next - ctx->cur_insn_len;
-    vaddr pc_page = current_pc & ~(vaddr)0xfff;
-    int64_t offset = (int64_t)(int32_t)a->imm;
-    offset <<= 12;
+    uint64_t offset = (uint64_t)(int64_t)(int32_t)a->imm << 1;
     TCGv_i64 out = tcg_temp_new_i64();
-    tcg_gen_movi_i64(out, pc_page + offset);
+    tcg_gen_movi_i64(out, current_pc + offset);
     linx_set_dest(a->RegDst, out);
     return true;
 }
