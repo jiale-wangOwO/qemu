@@ -8,8 +8,30 @@ static unsigned cube_dimension(uint32_t value)
     return value ? value : 8u;
 }
 
+static bool cube_is_tmatmul_family(const CPULinxState *env)
+{
+    switch (env->tile_func & 0x1fu) {
+    case 0u:  /* TMATMUL */
+    case 1u:  /* TMATMUL.BIAS */
+    case 2u:  /* TMATMUL.ACC */
+    case 4u:  /* TMATMUL.MX */
+    case 5u:  /* TMATMUL.MX.BIAS */
+    case 6u:  /* TMATMUL.MX.ACC */
+        return true;
+    default:
+        return false;
+    }
+}
+
 LinxTileCubeDimensions linx_tile_cube_dimensions_058(const CPULinxState *env)
 {
+    if (cube_is_tmatmul_family(env)) {
+        return (LinxTileCubeDimensions) {
+            .m = cube_dimension(env->lb[0]),
+            .n = cube_dimension(env->lb[1]),
+            .k = cube_dimension(env->lb[2]),
+        };
+    }
     return (LinxTileCubeDimensions) {
         .m = cube_dimension(env->lb[1]),
         .n = cube_dimension(env->lb[0]),
@@ -115,8 +137,8 @@ bool linx_tile_cube_primary_legal_058(const CPULinxState *env,
     uint8_t acc_dtype = mx ? LINX_TILE_ACC_FP32
                            : linx_tile_numeric_acc_dtype(env->tile_dtype);
 
-    if (src_a < LINX_TILE_SLOT_COUNT) {
-        /* PTO 0.58: LB2 is destination Col; K is source-descriptor state. */
+    if (!cube_is_tmatmul_family(env) && src_a < LINX_TILE_SLOT_COUNT) {
+        /* TGEMV retains its source-descriptor inner dimension. */
         dims.k = env->tile_reg_valid_cols[src_a];
     }
 
@@ -269,8 +291,8 @@ static bool linx_tile_cube_compute_common_058(
     float_status fp_status = {0};
     uint8_t *next;
 
-    if (src_a < LINX_TILE_SLOT_COUNT) {
-        /* PTO 0.58: the equal A.cols/B.rows descriptor dimension is K. */
+    if (!cube_is_tmatmul_family(env) && src_a < LINX_TILE_SLOT_COUNT) {
+        /* TGEMV retains its source-descriptor inner dimension. */
         dims.k = env->tile_reg_valid_cols[src_a];
         kdim = dims.k;
     }
@@ -510,8 +532,10 @@ bool linx_tile_acccvt_058(CPULinxState *env, unsigned dst_tile,
     uint32_t dst_dtype = env->tile_dtype & 31u;
     unsigned elem_bytes = cube_dtype_bytes(dst_dtype);
     uint64_t bytes = size_code < 60u ? UINT64_C(1) << (size_code + 4u) : 0u;
-    unsigned physical_cols = env->lb[2] != 0u
-                                 ? env->lb[2] : env->tile_acc_cols;
+    unsigned physical_cols = cube_is_tmatmul_family(env)
+                                 ? env->tile_acc_cols
+                                 : (env->lb[2] != 0u
+                                        ? env->lb[2] : env->tile_acc_cols);
     uint64_t row_bytes = linx_tile_numeric_is_packed(dst_dtype)
                              ? (physical_cols + 1u) / 2u
                              : (uint64_t)physical_cols * elem_bytes;

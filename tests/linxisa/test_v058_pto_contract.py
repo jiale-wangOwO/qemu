@@ -19,6 +19,7 @@ class PtoV058ContractTests(unittest.TestCase):
         cls.decode32 = (TARGET / "insn32.decode").read_text(encoding="utf-8")
         cls.cpu = (TARGET / "cpu.h").read_text(encoding="utf-8")
         cls.helper = (TARGET / "helper.c").read_text(encoding="utf-8")
+        cls.cube = (TARGET / "tile_cube_058.c").read_text(encoding="utf-8")
         cls.translate = (TARGET / "translate.c").read_text(encoding="utf-8")
         cls.tile_isa = (TARGET / "tile_isa_058.h").read_text(encoding="utf-8")
         cls.meta = (TARGET / "linx_opcode_meta_gen.h").read_text(encoding="utf-8")
@@ -95,6 +96,22 @@ class PtoV058ContractTests(unittest.TestCase):
             r"linx_tile_cube_compute\(env, sources\[1\], sources\[3\],\s*"
             r"sources\[2\], sources\[4\]",
         )
+
+    def test_tmatmul_dimensions_are_m_n_k(self) -> None:
+        self.assertRegex(
+            self.cube,
+            r"if \(cube_is_tmatmul_family\(env\)\) \{\s*"
+            r"return \(LinxTileCubeDimensions\) \{\s*"
+            r"\.m = cube_dimension\(env->lb\[0\]\),\s*"
+            r"\.n = cube_dimension\(env->lb\[1\]\),\s*"
+            r"\.k = cube_dimension\(env->lb\[2\]\),",
+        )
+        self.assertRegex(
+            self.cube,
+            r"physical_cols = cube_is_tmatmul_family\(env\)\s*"
+            r"\? env->tile_acc_cols",
+        )
+        self.assertNotIn("LB2 is destination Col", self.cube)
 
     def test_shared_tstore_profiles_are_executable(self) -> None:
         self.assertIn("bstart_tstore_spart", self.decode32)
