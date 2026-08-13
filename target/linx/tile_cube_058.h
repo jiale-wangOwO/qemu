@@ -24,6 +24,11 @@ bool linx_tile_cube_compute_shared_b_058(
     CPULinxState *env, unsigned src_a, const uint8_t *shared_b,
     uint32_t shared_b_bytes, uint32_t shared_b_dtype, unsigned size_code,
     bool accumulate);
+bool linx_tile_cube_compute_shared_ab_058(
+    CPULinxState *env, const uint8_t *shared_a, uint32_t shared_a_bytes,
+    uint32_t shared_a_dtype, const uint8_t *shared_b,
+    uint32_t shared_b_bytes, uint32_t shared_b_dtype, unsigned size_code,
+    bool accumulate);
 bool linx_tile_acccvt_058(CPULinxState *env, unsigned dst_tile,
                           unsigned size_code);
 
