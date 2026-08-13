@@ -61,6 +61,46 @@ static inline bool linx_tile_value_reduction_descriptor(
     return *cols != 0u && *rows != 0u;
 }
 
+/*
+ * TTRANS swaps the source valid rectangle.  Destination physical columns are
+ * supplied by B.DIM LB2, while physical rows derive exactly from capacity.
+ * Keep this pure so output binding can reject an illegal descriptor before
+ * publishing any Tile state.
+ */
+static inline bool linx_tile_transpose_descriptor(
+    uint32_t source_valid_cols, uint32_t source_valid_rows,
+    uint32_t source_cols, uint32_t source_rows, uint32_t bytes,
+    unsigned elem_bytes, uint32_t destination_cols,
+    uint32_t *destination_valid_cols, uint32_t *destination_valid_rows,
+    uint32_t *destination_cols_out, uint32_t *destination_rows)
+{
+    const uint64_t destination_row_bytes =
+        (uint64_t)destination_cols * elem_bytes;
+
+    if (destination_valid_cols == NULL || destination_valid_rows == NULL ||
+        destination_cols_out == NULL || destination_rows == NULL ||
+        source_valid_cols == 0u || source_valid_rows == 0u ||
+        source_valid_cols > source_cols || source_valid_rows > source_rows ||
+        elem_bytes == 0u || bytes == 0u || destination_cols == 0u ||
+        destination_row_bytes > bytes ||
+        bytes % destination_row_bytes != 0u) {
+        return false;
+    }
+
+    const uint32_t rows = bytes / destination_row_bytes;
+    if (source_valid_rows > destination_cols ||
+        source_valid_cols > rows || destination_cols > UINT16_MAX ||
+        rows > UINT16_MAX) {
+        return false;
+    }
+
+    *destination_valid_cols = source_valid_rows;
+    *destination_valid_rows = source_valid_cols;
+    *destination_cols_out = destination_cols;
+    *destination_rows = rows;
+    return true;
+}
+
 static inline bool linx_tile_operation_preflight_resolve_ior(
     const CPULinxState *env, unsigned slot, unsigned *reg_out)
 {
@@ -183,6 +223,7 @@ static inline bool linx_tile_operation_pre_publish_legal(
                               impl == 0x087u ||
                               impl == 0x089u || impl == 0x085u ||
                               impl == 0x084u || impl == 0x105u ||
+                              impl == 0x01du ||
                               (impl >= 0x102u && impl <= 0x10bu);
 
     if (impl == 0x02cu) {
@@ -279,6 +320,15 @@ static inline bool linx_tile_operation_pre_publish_legal(
                env->tile_reg_valid_cols[src0] >= valid_cols &&
                env->tile_reg_valid_rows[src0] >= valid_rows &&
                env->tile_reg_cols[src0] == cols;
+    }
+    if (impl == 0x01du) { /* TTRANS */
+        return has_src0 && !has_src1 && src0 < LINX_TILE_SLOT_COUNT &&
+               env->tile_reg_valid_rows[src0] != 0u &&
+               env->tile_reg_valid_cols[src0] != 0u &&
+               env->tile_reg_valid_rows[src0] <= env->tile_reg_rows[src0] &&
+               env->tile_reg_valid_cols[src0] <= env->tile_reg_cols[src0] &&
+               env->tile_reg_dtype[src0] == dtype &&
+               env->tile_reg_elem_bytes[src0] == elem_bytes;
     }
     if (impl == 0x030u) { /* TREM */
         return has_src1 && linx_tile_operation_remainder_tile_divisors_legal(

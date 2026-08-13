@@ -355,6 +355,35 @@ static void test_value_reduction_destination_descriptors(void)
         0x000u, 8u, 8u, 128u, 4u, &valid_cols, &valid_rows, &cols, &rows));
 }
 
+static void test_transpose_destination_descriptor(void)
+{
+    uint32_t valid_cols = UINT32_MAX;
+    uint32_t valid_rows = UINT32_MAX;
+    uint32_t cols = UINT32_MAX;
+    uint32_t rows = UINT32_MAX;
+
+    g_assert_true(linx_tile_transpose_descriptor(
+        32u, 16u, 64u, 16u, 1024u, 2u, 16u,
+        &valid_cols, &valid_rows, &cols, &rows));
+    g_assert_cmpuint(valid_cols, ==, 16u);
+    g_assert_cmpuint(valid_rows, ==, 32u);
+    g_assert_cmpuint(cols, ==, 16u);
+    g_assert_cmpuint(rows, ==, 32u);
+
+    valid_cols = valid_rows = cols = rows = UINT32_MAX;
+    g_assert_false(linx_tile_transpose_descriptor(
+        32u, 16u, 64u, 16u, 512u, 2u, 16u,
+        &valid_cols, &valid_rows, &cols, &rows));
+    g_assert_cmpuint(valid_cols, ==, UINT32_MAX);
+    g_assert_cmpuint(valid_rows, ==, UINT32_MAX);
+    g_assert_cmpuint(cols, ==, UINT32_MAX);
+    g_assert_cmpuint(rows, ==, UINT32_MAX);
+
+    g_assert_false(linx_tile_transpose_descriptor(
+        65u, 16u, 64u, 16u, 1024u, 2u, 16u,
+        &valid_cols, &valid_rows, &cols, &rows));
+}
+
 static void test_operation_zero_tquant_scale_is_atomic(void)
 {
     CPULinxState *env = new_atomicity_env();
@@ -467,6 +496,8 @@ int main(int argc, char **argv)
                     test_operation_tcvt_accepts_different_carrier_rows);
     g_test_add_func("/linx/tile-transaction/value-reduction-descriptors",
                     test_value_reduction_destination_descriptors);
+    g_test_add_func("/linx/tile-transaction/transpose-descriptor",
+                    test_transpose_destination_descriptor);
     g_test_add_func("/linx/tile-transaction/operation-zero-tquant-scale",
                     test_operation_zero_tquant_scale_is_atomic);
     g_test_add_func("/linx/tile-transaction/operation-trem-zero-tile-divisor",

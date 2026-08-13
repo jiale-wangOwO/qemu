@@ -9597,6 +9597,33 @@ static bool linx_tile_set_block_shape(CPULinxState *env, unsigned tile,
                                elems / cols);
 }
 
+/* PTO TTRANS swaps the source valid rectangle. LB2 is the destination
+ * physical column count; physical rows derive exactly from capacity. */
+static bool linx_tile_set_transpose_shape(CPULinxState *env,
+                                          unsigned destination,
+                                          unsigned source, uint32_t bytes,
+                                          unsigned elem_bytes, bool publish)
+{
+    const uint32_t destination_cols = env->lb[2] & 0xffffu;
+    uint32_t valid_cols;
+    uint32_t valid_rows;
+    uint32_t cols;
+    uint32_t rows;
+
+    if (source >= LINX_TILE_SLOT_COUNT || destination >= LINX_TILE_SLOT_COUNT) {
+        return false;
+    }
+    if (!linx_tile_transpose_descriptor(
+            env->tile_reg_valid_cols[source],
+            env->tile_reg_valid_rows[source], env->tile_reg_cols[source],
+            env->tile_reg_rows[source], bytes, elem_bytes, destination_cols,
+            &valid_cols, &valid_rows, &cols, &rows)) {
+        return false;
+    }
+    return !publish || linx_tile_set_shape(
+        env, destination, valid_cols, valid_rows, cols, rows);
+}
+
 static bool linx_tile_block_shape_valid(const CPULinxState *env,
                                         uint32_t bytes,
                                         unsigned elem_bytes)
@@ -14022,9 +14049,12 @@ static bool linx_tile_operation(CPULinxState *env, unsigned dst_tile,
                                            MAX(1u, elem_bytes));
     const bool operation_shape_valid = value_reduction
         ? reduction_source_shape_valid
+        : impl_op == 0x01du && has_src0 && src0_tile < LINX_TILE_SLOT_COUNT
+        ? (rows = env->tile_reg_valid_rows[src0_tile],
+           cols = env->tile_reg_valid_cols[src0_tile],
+           physical_cols = env->tile_reg_cols[src0_tile], true)
         : linx_tile_operation_shape(env, elem_bytes, shape_elems,
                                     &rows, &cols, &physical_cols);
-
     if (value_reduction && reduction_source_shape_valid) {
         rows = env->tile_reg_valid_rows[src0_tile];
         cols = env->tile_reg_valid_cols[src0_tile];
@@ -14641,13 +14671,29 @@ static bool linx_tile_operation(CPULinxState *env, unsigned dst_tile,
         if (!has_src0) {
             return false;
         }
-        for (uint32_t r = 0; r < rows; r++) {
-            for (uint32_t c = 0; c < cols; c++) {
+        const uint32_t src_rows = env->tile_reg_valid_rows[src0_tile];
+        const uint32_t src_cols = env->tile_reg_valid_cols[src0_tile];
+        const uint32_t src_stride = env->tile_reg_cols[src0_tile];
+        const uint32_t dst_stride = env->tile_reg_cols[dst_tile];
+        if (env->tile_reg_dtype[src0_tile] != operation_dtype ||
+            env->tile_reg_dtype[dst_tile] != operation_dtype ||
+            env->tile_reg_elem_bytes[src0_tile] != elem_bytes ||
+            env->tile_reg_elem_bytes[dst_tile] != elem_bytes ||
+            src_rows == 0u || src_cols == 0u || src_stride < src_cols ||
+            dst_stride < src_rows ||
+            env->tile_reg_valid_rows[dst_tile] != src_cols ||
+            env->tile_reg_valid_cols[dst_tile] != src_rows) {
+            return false;
+        }
+        for (uint32_t r = 0; r < src_rows; r++) {
+            for (uint32_t c = 0; c < src_cols; c++) {
                 uint32_t value = 0;
-                linx_tile_get_elem(env, src0_tile, r * physical_cols + c,
-                                   elem_bytes, &value);
-                linx_tile_set_elem(env, dst_tile, c * physical_cols + r,
-                                   elem_bytes, value);
+                if (!linx_tile_get_elem(env, src0_tile, r * src_stride + c,
+                                        elem_bytes, &value) ||
+                    !linx_tile_set_elem(env, dst_tile, c * dst_stride + r,
+                                        elem_bytes, value)) {
+                    return false;
+                }
             }
         }
     } else if (op == 0x10cu) { /* TFMA */
@@ -14728,9 +14774,18 @@ static bool linx_tile_operation(CPULinxState *env, unsigned dst_tile,
 
     /* Every produced NaN is canonical; the attribute only controls inputs. */
     {
-        for (uint32_t r = 0; r < rows; r++) {
-            for (uint32_t c = 0; c < cols; c++) {
-                const uint32_t lane = r * physical_cols + c;
+        const uint32_t result_rows = op == 0x01du
+                                         ? env->tile_reg_valid_rows[dst_tile]
+                                         : rows;
+        const uint32_t result_cols = op == 0x01du
+                                         ? env->tile_reg_valid_cols[dst_tile]
+                                         : cols;
+        const uint32_t result_stride = op == 0x01du
+                                           ? env->tile_reg_cols[dst_tile]
+                                           : physical_cols;
+        for (uint32_t r = 0; r < result_rows; r++) {
+            for (uint32_t c = 0; c < result_cols; c++) {
+                const uint32_t lane = r * result_stride + c;
                 uint64_t value = 0;
                 if (!linx_tile_get_elem64(env, dst_tile, lane, elem_bytes,
                                           &value) ||
@@ -14749,7 +14804,10 @@ static bool linx_tile_operation(CPULinxState *env, unsigned dst_tile,
     env->tile_reg_bytes[dst_tile] = (uint32_t)bytes64;
     linx_tile_set_elem_bytes(env, dst_tile, elem_bytes);
     linx_tile_set_dtype(env, dst_tile, operation_dtype);
-    if (value_reduction ?
+    if (op == 0x01du ?
+            !linx_tile_set_transpose_shape(
+                env, dst_tile, src0_tile, (uint32_t)bytes64, elem_bytes, true) :
+        value_reduction ?
             !linx_tile_value_reduction_output_shape(
                 env, dst_tile, src0_tile, (uint32_t)bytes64, elem_bytes,
                 op, true) :
@@ -16731,8 +16789,14 @@ void HELPER(linx_tile_append_iot)(CPULinxState *env, uint64_t packed)
         const bool value_reduction =
             operation_impl != UINT32_MAX &&
             linx_tile_value_reduction_axis(operation_impl, NULL);
-        const bool shape_valid = value_reduction && (src_valid & 1u) == 0u
+        const bool transpose = operation_impl == 0x01du;
+        const bool shape_valid = (transpose || value_reduction) &&
+                                 (src_valid & 1u) == 0u
             ? false
+            : transpose
+            ? linx_tile_set_transpose_shape(
+                  env, dst_tile, src_phys[0], (uint32_t)bytes64,
+                  output_elem_bytes, false)
             : value_reduction
             ? linx_tile_value_reduction_output_shape(
                   env, dst_tile, src_phys[0], (uint32_t)bytes64,
@@ -17292,7 +17356,14 @@ static bool linx_tile_materialize_planned_outputs(
         const bool reduction_source_valid =
             !value_reduction ||
             linx_tile_get_bound_source(env, i, 0u, &reduction_source);
-        if (!reduction_source_valid || (value_reduction ?
+        if (operation_impl == 0x01du &&
+            !linx_tile_get_bound_source(env, i, 0u, &reduction_source)) {
+            return false;
+        }
+        if (!reduction_source_valid || (operation_impl == 0x01du ?
+                !linx_tile_set_transpose_shape(
+                    env, dst_tile, reduction_source, bytes, elem_bytes, true) :
+                value_reduction ?
                 !linx_tile_value_reduction_output_shape(
                     env, dst_tile, reduction_source, bytes, elem_bytes,
                     operation_impl, true) :
