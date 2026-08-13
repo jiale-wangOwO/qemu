@@ -101,6 +101,75 @@ static inline bool linx_tile_transpose_descriptor(
     return true;
 }
 
+/*
+ * PTO TCVT keeps the complete logical shape of its source while changing the
+ * element type.  A missing bundle dimension inherits the corresponding
+ * source field; destination rows still derive from its own byte capacity.
+ */
+static inline bool linx_tile_tcvt_descriptor(
+    uint32_t source_valid_cols, uint32_t source_valid_rows,
+    uint32_t source_cols, uint32_t source_rows, uint32_t bytes,
+    unsigned elem_bytes, uint32_t bundle_valid_cols,
+    uint32_t bundle_valid_rows, uint32_t bundle_cols,
+    uint32_t *destination_valid_cols, uint32_t *destination_valid_rows,
+    uint32_t *destination_cols, uint32_t *destination_rows)
+{
+    const uint32_t valid_cols = bundle_valid_cols != 0u
+                                    ? bundle_valid_cols : source_valid_cols;
+    const uint32_t valid_rows = bundle_valid_rows != 0u
+                                    ? bundle_valid_rows : source_valid_rows;
+    const uint32_t cols = bundle_cols != 0u ? bundle_cols : source_cols;
+    const uint64_t row_bytes = (uint64_t)cols * elem_bytes;
+
+    if (destination_valid_cols == NULL || destination_valid_rows == NULL ||
+        destination_cols == NULL || destination_rows == NULL ||
+        source_valid_cols == 0u || source_valid_rows == 0u ||
+        source_cols == 0u || source_rows == 0u ||
+        source_valid_cols > source_cols || source_valid_rows > source_rows ||
+        elem_bytes == 0u || bytes == 0u || row_bytes == 0u ||
+        row_bytes > bytes || bytes % row_bytes != 0u) {
+        return false;
+    }
+
+    const uint32_t rows = bytes / row_bytes;
+    if (valid_cols != source_valid_cols || valid_rows != source_valid_rows ||
+        cols != source_cols || rows != source_rows ||
+        valid_cols > cols || valid_rows > rows || cols > UINT16_MAX ||
+        rows > UINT16_MAX) {
+        return false;
+    }
+
+    *destination_valid_cols = valid_cols;
+    *destination_valid_rows = valid_rows;
+    *destination_cols = cols;
+    *destination_rows = rows;
+    return true;
+}
+
+/* TSTORE walks the source Tile descriptor; bundle LB dimensions do not
+ * redefine its valid rectangle or physical row stride. */
+static inline bool linx_tile_tstore_descriptor_shape(
+    uint32_t source_valid_cols, uint32_t source_valid_rows,
+    uint32_t source_cols, uint32_t source_rows, uint32_t bytes,
+    unsigned elem_bytes, uint32_t *tile_outer, uint32_t *tile_inner,
+    uint32_t *memory_outer, uint32_t *memory_inner)
+{
+    if (tile_outer == NULL || tile_inner == NULL || memory_outer == NULL ||
+        memory_inner == NULL || source_valid_cols == 0u ||
+        source_valid_rows == 0u || source_cols == 0u || source_rows == 0u ||
+        source_valid_cols > source_cols || source_valid_rows > source_rows ||
+        elem_bytes == 0u ||
+        (uint64_t)source_cols * source_rows * elem_bytes != bytes) {
+        return false;
+    }
+
+    *tile_outer = source_rows;
+    *tile_inner = source_cols;
+    *memory_outer = source_valid_rows;
+    *memory_inner = source_valid_cols;
+    return true;
+}
+
 static inline bool linx_tile_operation_preflight_resolve_ior(
     const CPULinxState *env, unsigned slot, unsigned *reg_out)
 {
@@ -317,9 +386,10 @@ static inline bool linx_tile_operation_pre_publish_legal(
     }
     if (impl == 0x00du) { /* TCVT */
         return has_src0 && !has_src1 && src0 < LINX_TILE_SLOT_COUNT &&
-               env->tile_reg_valid_cols[src0] >= valid_cols &&
-               env->tile_reg_valid_rows[src0] >= valid_rows &&
-               env->tile_reg_cols[src0] == cols;
+               env->tile_reg_valid_cols[src0] == valid_cols &&
+               env->tile_reg_valid_rows[src0] == valid_rows &&
+               env->tile_reg_cols[src0] == cols &&
+               env->tile_reg_rows[src0] == rows;
     }
     if (impl == 0x01du) { /* TTRANS */
         return has_src0 && !has_src1 && src0 < LINX_TILE_SLOT_COUNT &&

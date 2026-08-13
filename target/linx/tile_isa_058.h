@@ -244,11 +244,24 @@ static inline bool linx_tile_datr_applicable(uint32_t blocktype,
                                              uint32_t packed,
                                              bool present)
 {
+    uint32_t nonzero;
+    const uint32_t allowed = linx_tile_datr_allowed(blocktype, function);
+
     if (!present) {
         return true;
     }
-    return (linx_tile_datr_nonzero_fields(packed) &
-            ~linx_tile_datr_allowed(blocktype, function)) == 0u;
+    nonzero = linx_tile_datr_nonzero_fields(packed);
+    /*
+     * The current compiler encoding names PadValueOrByteId=1 as Zero.  For
+     * operations whose schema requires this union to be semantically zero,
+     * accept that spelling without making Max/Min or a real byte selector
+     * applicable.  Operations that consume the union keep the raw value.
+     */
+    if ((allowed & LINX_DATR_PAD_OR_BYTE_ID) == 0u &&
+        ((packed >> 12) & 3u) == 1u) {
+        nonzero &= ~LINX_DATR_PAD_OR_BYTE_ID;
+    }
+    return (nonzero & ~allowed) == 0u;
 }
 
 #endif /* TARGET_LINX_TILE_ISA_058_H */
