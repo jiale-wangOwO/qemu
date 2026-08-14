@@ -3,7 +3,7 @@
 _start:
   C.BSTART
 
-  # PTO ASL AddToPC: destination = TPC + (SignExtend(imm20) << 1).
+  # PTO ASL AddToPC: destination = TPC + (SignExtend(imm) << 12).
   addtpc 2, ->a1
   addtpc -2, ->a2
   hl.addtpc 2, ->a3

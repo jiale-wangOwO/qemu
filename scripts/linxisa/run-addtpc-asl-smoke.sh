@@ -36,7 +36,7 @@ with open(os.environ["TRACE"], "r", encoding="utf-8") as stream:
     rows = [json.loads(line) for line in stream if line.strip()]
 
 writebacks = [row for row in rows if row.get("wb_valid")]
-expected = [(4, "positive"), (-4, "negative")]
+expected = [(0x2000, "positive"), (-0x2000, "negative")]
 matched = {name: 0 for _, name in expected}
 for row in writebacks:
     pc = row.get("pc")
@@ -52,5 +52,5 @@ if missing:
     print(f"error: missing ADDTPC ASL writeback(s): {', '.join(missing)}", file=sys.stderr)
     print(json.dumps(writebacks, indent=2), file=sys.stderr)
     sys.exit(1)
-print("ok: ADDTPC and HL.ADDTPC positive and negative halfword displacements")
+print("ok: ADDTPC and HL.ADDTPC positive and negative page displacements")
 PY

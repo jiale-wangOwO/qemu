@@ -6656,10 +6656,10 @@ static bool trans_xb(DisasContext *ctx, arg_xb *a)
 
 static bool trans_addtpc(DisasContext *ctx, arg_addtpc *a)
 {
-    /* PTO AddToPC: destination = TPC + (SignExtend(imm20) << 1). */
+    /* PTO AddToPC: destination = TPC + (SignExtend(imm20) << 12). */
     vaddr current_pc = ctx->base.pc_next - ctx->cur_insn_len;
     int64_t imm = (int64_t)(int32_t)(a->imm20 << 12) >> 12;
-    uint64_t offset = (uint64_t)imm << 1;
+    uint64_t offset = (uint64_t)imm << 12;
     TCGv_i64 out = tcg_temp_new_i64();
     tcg_gen_movi_i64(out, current_pc + offset);
     linx_set_dest(a->RegDst, out);
@@ -7553,9 +7553,9 @@ static bool trans_hl_addtpc(DisasContext *ctx, arg_hl_addtpc *a)
         return linx_setret_common(ctx, (int64_t)(int32_t)a->imm);
     }
 
-    /* PTO AddToPC: destination = TPC + (SignExtend(imm32) << 1). */
+    /* PTO AddToPC: destination = TPC + (SignExtend(imm32) << 12). */
     vaddr current_pc = ctx->base.pc_next - ctx->cur_insn_len;
-    uint64_t offset = (uint64_t)(int64_t)(int32_t)a->imm << 1;
+    uint64_t offset = (uint64_t)(int64_t)(int32_t)a->imm << 12;
     TCGv_i64 out = tcg_temp_new_i64();
     tcg_gen_movi_i64(out, current_pc + offset);
     linx_set_dest(a->RegDst, out);
